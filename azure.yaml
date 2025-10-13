@@ -1,0 +1,22 @@
+name: taskmaster
+metadata:
+  template: taskmaster
+services:
+  dashboard:
+    project: ./apps/dashboard
+    language: js
+    host: staticwebapp
+    tags:
+      azd-service-name: dashboard
+  api:
+    project: ./apps/api
+    language: js
+    host: appservice
+    tags:
+      azd-service-name: api
+infra:
+  provider: bicep
+  path: ./infra
+  parameters:
+    location: ${AZURE_LOCATION}
+    environmentName: ${AZURE_ENV_NAME}

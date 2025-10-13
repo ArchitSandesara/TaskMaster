@@ -1,0 +1,88 @@
+name: Deploy to Azure (App Service)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  provision-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AZURE_LOCATION: eastus
+      AZURE_ENV_NAME: taskmaster-prod
+      NODE_VERSION: '20'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure resource group
+        run: |
+          az group create -n rg-${{ env.AZURE_ENV_NAME }} -l ${{ env.AZURE_LOCATION }} --tags azd-env-name=${{ env.AZURE_ENV_NAME }}
+
+      - name: Validate Bicep
+        run: |
+          az deployment group what-if \
+            --name tm-whatif \
+            --resource-group rg-${{ env.AZURE_ENV_NAME }} \
+            --template-file infra/main.bicep \
+            --parameters @infra/main.parameters.json \
+            --parameters environmentName=${{ env.AZURE_ENV_NAME }} location=${{ env.AZURE_LOCATION }}
+
+      - name: Deploy Bicep
+        run: |
+          az deployment group create \
+            --name tm-deploy \
+            --resource-group rg-${{ env.AZURE_ENV_NAME }} \
+            --template-file infra/main.bicep \
+            --parameters @infra/main.parameters.json \
+            --parameters environmentName=${{ env.AZURE_ENV_NAME }} location=${{ env.AZURE_LOCATION }} \
+            --output json > deploy-output.json
+
+      - name: Extract Web App name
+        id: outputs
+        run: |
+          echo "WEBAPP_NAME=$(jq -r '.properties.outputs.WEBAPP_NAME.value' deploy-output.json)" >> $GITHUB_OUTPUT
+          echo "WEBAPP_URL=$(jq -r '.properties.outputs.WEBAPP_URL.value' deploy-output.json)" >> $GITHUB_OUTPUT
+
+      - name: Build API and Dashboard
+        run: |
+          npx nx build api
+          npx nx build dashboard
+
+      - name: Zip artifact
+        run: |
+          mkdir -p zip
+          # include API dist and dashboard static output, serve via Nest
+          cp -r dist/apps/api ./zip/
+          mkdir -p zip/dist/apps/dashboard
+          cp -r dist/apps/dashboard/browser ./zip/dist/apps/dashboard/
+          cd zip && zip -r app.zip . && cd ..
+
+      - name: Deploy to Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ steps.outputs.outputs.WEBAPP_NAME }}
+          package: zip/app.zip
+
+      - name: Show endpoint
+        run: echo "App deployed at ${{ steps.outputs.outputs.WEBAPP_URL }}"

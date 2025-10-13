@@ -6,6 +6,7 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app/app.module';
+import { join } from 'path';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -24,6 +25,20 @@ async function bootstrap() {
   });
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
+  // Serve Angular static files from dist/apps/dashboard/browser when deployed together
+  try {
+    const clientPath = join(__dirname, '../../dashboard/browser');
+    const server = app.getHttpAdapter().getInstance();
+    // Static files
+    server.use(require('express').static(clientPath));
+    // SPA fallback: for non-API routes, return index.html
+    server.get('*', (req: any, res: any, next: any) => {
+      if (req.path.startsWith(`/${globalPrefix}`)) return next();
+      res.sendFile(join(clientPath, 'index.html'));
+    });
+  } catch (e) {
+    Logger.warn(`Static file serving not initialized: ${e?.message ?? e}`);
+  }
   const port = Number(process.env.PORT) || 3001;
   await app.listen(port);
   Logger.log(
