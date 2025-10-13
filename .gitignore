@@ -1,0 +1,56 @@
+# Node/NPM
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS/Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Env/Secrets
+.env
+.env*.local
+*.env.local
+
+# Nx / Build outputs
+dist/
+tmp/
+coverage/
+.nx/cache/
+.nx/workspace-data/
+
+# Angular
+.angular/
+
+# Jest
+jest-html-reporters-*.html
+test-results/
+
+# Logs
+logs/
+*.log
+
+# Database files (SQLite/local)
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+
+# Generated assets
+apps/**/assets/generated/
+
+# Playwright artifacts
+playwright-report/
+playwright/.cache
+
+# Misc
+*.tsbuildinfo
+*.pid
+*.seed
